@@ -1,10 +1,10 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ja">
 <head>
-    <meta charset="UTF-8">
-    <title>幻の島シミュレーション</title>
+    <meta charset="UTF-8" />
+    <title>陣取りシミュレーション</title>
     <style>
-        /* キャンバス 1000×700 + 右ペイン 200 => 1200px中央配置 */
+        /* キャンバス 1000×700 + 右ペイン200 => 幅1200pxで中央寄せ */
         #container {
             display: flex;
             width: 1200px;
@@ -54,17 +54,16 @@
     </style>
 </head>
 <body>
-    <!-- タブ切り替え -->
+    <!-- タブ切り替え部分 -->
     <div style="padding:10px; border-bottom:1px solid #ccc;">
         <button id="simulationTab">シミュレーション</button>
         <button id="adventureTab">冒険団管理</button>
     </div>
 
-    <!-- シミュレーションセクション -->
+    <!-- シミュレーション画面 -->
     <div id="simulationSection">
         <div id="container">
             <div id="left-pane">
-                <!-- キャンバス -->
                 <canvas id="gameCanvas" width="1000" height="700"></canvas>
             </div>
             <div id="right-pane">
@@ -72,6 +71,7 @@
                 <div id="scores"></div>
                 <button id="resetButton">リセット</button>
                 <h3>詳細</h3>
+                <!-- ここに「どの冒険団がどのマスを占領し、そのマスの得点は何点か」を表示する -->
                 <div id="details">（詳細情報表示エリア）</div>
             </div>
         </div>
@@ -96,7 +96,7 @@
             </div>
             <div>
                 <label>アクティブ値: </label>
-                <!-- 3億など文字OK -->
+                <!-- 3億など文字入力可 -->
                 <input type="text" id="activeInput" value="0" required />
             </div>
             <div>
@@ -113,17 +113,16 @@
     </div>
 
     <script>
+        // ====================================
+        // グローバル変数 & 定数
+        // ====================================
         const canvas = document.getElementById("gameCanvas");
         const ctx = canvas.getContext("2d");
 
-        let nodes = {};
-        let adventureGroupsCache = {};
+        let nodes = {};                   // /api/map の結果を保持
+        let adventureGroupsCache = {};    // /api/adventure_groups の結果
 
-        // マップ表示をオフセットしたいなら変更
-        const MAP_OFFSET_X = 80;
-        const MAP_OFFSET_Y = 60;
-
-        // ノード種別→描画サイズ
+        // ノードタイプ -> 描画サイズ
         const NODE_SIZES = {
             "コンビニ": 15,
             "スーパー": 20,
@@ -132,9 +131,16 @@
             "中心大厦": 35
         };
 
+        // キャンバス内でマップを右下にずらすオフセット (不要なら0,0)
+        const MAP_OFFSET_X = 80;
+        const MAP_OFFSET_Y = 60;
+
+        // ====================================
         // タブ切り替え
+        // ====================================
         const simulationSection = document.getElementById("simulationSection");
         const adventureSection = document.getElementById("adventureSection");
+
         document.getElementById("simulationTab").onclick = () => {
             simulationSection.style.display = "block";
             adventureSection.style.display = "none";
@@ -145,20 +151,23 @@
             fetchAdventureGroups();
         };
 
+        // ====================================
         // 初期ロード
-        loadMap();
-        fetchAdventureGroups();
-        fetchTerritoryList();
+        // ====================================
+        loadMap();                // /api/map => nodes
+        fetchAdventureGroups();   // /api/adventure_groups => adventureGroupsCache
+        fetchTerritoryList();     // 陣地リスト => select
 
-        //========================
-        // マップ読み込み & 描画
-        //========================
+        // ====================================
+        // マップ読み込み & 描画 & 詳細情報
+        // ====================================
         function loadMap() {
             fetch("/api/map")
                 .then(r => r.json())
                 .then(data => {
                     nodes = data;
                     drawAll();
+                    buildDetailInfo();  // ここで詳細情報表示を更新
                 });
         }
 
@@ -173,9 +182,11 @@
             ctx.strokeStyle = "gray";
             ctx.lineWidth = 2;
             let drawnLinks = new Set();
+
             for (let id in nodes) {
-                let nd = nodes[id];
+                const nd = nodes[id];
                 if (!nd.links) continue;
+
                 for (let targetId of nd.links) {
                     if (!(targetId in nodes)) continue;
                     let key = [id, targetId].sort().join("-");
@@ -191,35 +202,29 @@
         }
 
         function drawNodes() {
-            /*
-              陣地に assigned_color があれば,
-              そのチームは陣地の assigned_color を使う。
-              → 'teamBaseColors[teamName] = assigned_color'
-            */
+            // 例えば「陣地の assigned_color」をチーム色として使う例
             let teamBaseColors = {};
             for (let id in nodes) {
-                let n = nodes[id];
+                const n = nodes[id];
                 if (n.type === "陣地" && n.team && n.assigned_color) {
                     teamBaseColors[n.team] = n.assigned_color;
                 }
             }
 
             for (let id in nodes) {
-                let nd = nodes[id];
+                const nd = nodes[id];
                 let bs = NODE_SIZES[nd.type] || 15;
                 let w = bs * 2, h = bs;
 
-                // 占領されたノードは 占領した冒険団の初期拠点カラー
-                let fillColor = "gray"; // デフォルト
+                // 塗り色
+                let fillColor = "gray";
                 if (nd.type === "陣地" && nd.assigned_color) {
-                    // 自分自身が陣地で assigned_color あれば
                     fillColor = nd.assigned_color;
                 } else if (nd.team && teamBaseColors[nd.team]) {
-                    // 非陣地ノードでも 'team' があれば そのチームの色
                     fillColor = teamBaseColors[nd.team];
                 }
 
-                // 四角形
+                // 四角
                 ctx.fillStyle = fillColor;
                 ctx.fillRect(
                     nd.x + MAP_OFFSET_X - w / 2,
@@ -227,7 +232,7 @@
                     w, h
                 );
 
-                // メインラベル: 陣地なら team, それ以外は name
+                // メインラベル (陣地なら team、非陣地は name)
                 let label = (nd.type === "陣地" && nd.team) ? nd.team : nd.name;
                 ctx.fillStyle = "black";
                 ctx.font = "12px Arial";
@@ -235,12 +240,10 @@
                 ctx.textBaseline = "middle";
                 ctx.fillText(label, nd.x + MAP_OFFSET_X, nd.y + MAP_OFFSET_Y);
 
-                // =========== 陣地だけに "活:xx 得:yy 脅:zz" を表示 ===========
+                // 陣地だけ「活: / 得: / 脅:」表示
                 if (nd.type === "陣地") {
                     let offsetY = 15;
-                    // raw_active_value は display_active
                     let av_str = nd.display_active || "0";
-                    // 合計スコア or その陣地スコア => display_score
                     let sc = nd.display_score || 0;
                     let thr = nd.threat || "";
                     ctx.fillText(`活:${av_str} 得:${sc} 脅:${thr}`,
@@ -248,12 +251,6 @@
                         nd.y + MAP_OFFSET_Y + offsetY
                     );
                 }
-
-                /*
-                  非陣地(コンビニ/ホール)については
-                  ここで '活:' や '得:' を表示しない
-                  => ユーザ要望「ただ占領したチームの色になるだけでいい」
-                */
             }
         }
 
@@ -261,17 +258,63 @@
             fetch("/api/scores")
                 .then(r => r.json())
                 .then(sc => {
-                    let out = "";
+                    let html = "";
                     for (let tm in sc) {
-                        out += `${tm} : ${sc[tm]} 点<br>`;
+                        html += `${tm} : ${sc[tm]} 点<br>`;
                     }
-                    document.getElementById("scores").innerHTML = out;
+                    document.getElementById("scores").innerHTML = html;
                 });
         }
 
-        //========================
-        // クリック => 占領
-        //========================
+        // ====================================
+        // 詳細情報: 「どの冒険団がどのマスを占領し、そのマスの得点は何点か」
+        // ====================================
+        function buildDetailInfo() {
+            /*
+              1. nodes をチームごとにグループ化
+              2. 陣地の得点は (owner_team==team)?0 : node.score
+                 非陣地は node.score
+              3. #details に表示
+            */
+            let detailMap = {}; // teamName => array of { nodeName, score }
+
+            for (let id in nodes) {
+                let nd = nodes[id];
+                if (!nd.team) continue; // 占領されていない
+                let team = nd.team;
+                if (!detailMap[team]) {
+                    detailMap[team] = [];
+                }
+                // スコアロジック
+                let nodeScore = 0;
+                if (nd.type === "陣地") {
+                    if (nd.owner_team === nd.team) {
+                        nodeScore = 0;
+                    } else {
+                        nodeScore = nd.score || 0;
+                    }
+                } else {
+                    // 非陣地(コンビニ等)
+                    nodeScore = nd.score || 0;
+                }
+                detailMap[team].push({ name: nd.name, score: nodeScore });
+            }
+
+            // HTML を組み立て
+            let detailHTML = "";
+            for (let tm in detailMap) {
+                detailHTML += `<strong>${tm}</strong><br>`;
+                detailMap[tm].forEach(obj => {
+                    detailHTML += `　- ${obj.name}: ${obj.score} 点<br>`;
+                });
+                detailHTML += "<br>";
+            }
+            document.getElementById("details").innerHTML = detailHTML || "（占領情報なし）";
+        }
+
+        // ====================================
+        // Canvasクリック => 占領チーム割り当て
+        // ====================================
         canvas.addEventListener("click", (ev) => {
             let rect = canvas.getBoundingClientRect();
             let scaleX = canvas.width / rect.width;
@@ -288,10 +331,12 @@
                 let right = nd.x + MAP_OFFSET_X + w / 2;
                 let top = nd.y + MAP_OFFSET_Y - h / 2;
                 let bottom = nd.y + MAP_OFFSET_Y + h / 2;
+
                 if (cx >= left && cx <= right && cy >= top && cy <= bottom) {
                     clickedId = id; break;
                 }
             }
+
             if (clickedId) {
                 let n = nodes[clickedId];
                 if (n.type === "陣地" && !n.team) {
@@ -312,7 +357,7 @@
                 .then(r => r.json())
                 .then(d => {
                     console.log(d.message);
-                    loadMap();
+                    loadMap();           // 再描画 & buildDetailInfo()も再実行
                     fetchAdventureGroups();
                 });
         }
@@ -331,8 +376,7 @@
             let sel = document.createElement("select");
             advNames.forEach(nm => {
                 let op = document.createElement("option");
-                op.value = nm;
-                op.text = nm;
+                op.value = nm; op.text = nm;
                 sel.appendChild(op);
             });
             popup.appendChild(sel);
@@ -369,9 +413,9 @@
                 });
         };
 
-        //========================
+        // ====================================
         // 冒険団管理
-        //========================
+        // ====================================
         document.getElementById("refreshGroupListBtn").onclick = fetchAdventureGroups;
 
         function fetchAdventureGroups() {
@@ -435,17 +479,17 @@
                 });
         }
 
-        document.getElementById("groupForm").addEventListener("submit", (e) => {
+        document.getElementById("groupForm").addEventListener("submit", e => {
             e.preventDefault();
             let gname = document.getElementById("groupNameInput").value.trim();
             let territory = document.getElementById("territorySelect").value;
-            let activeVal = document.getElementById("activeInput").value;
+            let activeVal = document.getElementById("activeInput").value; // ex. '3億'
             let bArr = Array.from(document.getElementsByClassName("battleInput")).map(x => parseFloat(x.value));
 
             let payload = {
                 group_name: gname,
                 territory: territory,
-                active_total: activeVal, // '3億'など文字
+                active_total: activeVal,
                 battle_values: bArr
             };
 
