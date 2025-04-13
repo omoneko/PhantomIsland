@@ -1,0 +1,14 @@
+﻿# Python 関連
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# 仮想環境
+env/
+venv/
+
+# OS 関連
+.DS_Store
+
+# Visual Studio のファイル
+.vs/
