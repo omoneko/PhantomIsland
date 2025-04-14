@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8" />
-    <title>陣取りシミュレーション</title>
+    <title>幻の島シミュレーション</title>
     <style>
         /* キャンバス 1000×700 + 右ペイン200 => 幅1200pxで中央寄せ */
         #container {
@@ -26,8 +26,29 @@
         }
 
         canvas {
-            border: 1px solid black;
-            display: block;
+          border: 1px solid black;
+          display: block;
+          width: 1000px;  /* PCでは固定にするなど */
+          height: 700px;
+        }
+    
+        /* スマホ（768px以下）向けのレスポンシブ */
+        @media screen and (max-width: 768px) {
+          #container {
+            flex-direction: column;  /* 上下配置 */
+            width: 100%;
+            height: auto;
+          }
+          #right-pane {
+            border-left: none;
+            border-top: 1px solid black;
+            width: 100%;
+          }
+          /* Canvasを画面幅に合わせて縮める */
+          canvas {
+            width: 100% !important;
+            height: auto !important;
+          }
         }
 
         .overlay {
