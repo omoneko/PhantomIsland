@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <title>幻の島シミュレーション</title>
   <style>
-    /* PC向け (768px超) */
+    /* --- PC向け (768px超) --- */
     #container {
       display: flex;
       flex-direction: row;
@@ -13,7 +13,6 @@
       height: 700px;
       align-items: flex-start;
     }
-    #left-pane {}
     #right-pane {
       width: 200px;
       padding: 10px;
@@ -25,11 +24,11 @@
     canvas {
       border: 1px solid black;
       display: block;
-      width: 1000px;
+      width: 1000px; /* PC時、横幅1000 */
       height: 700px;
     }
 
-    /* スマホ向け (768px以下) */
+    /* --- スマホ向け (768px以下) --- */
     @media screen and (max-width: 768px) {
       #container {
         flex-direction: column;
@@ -52,7 +51,7 @@
       top: 0; left: 0;
       width: 100%; height: 100%;
       background-color: rgba(0,0,0,0.5);
-      display: flex; align-items: center; justify-content: center;
+      display: flex; align-items:center; justify-content:center;
     }
     .popup {
       background-color: white;
@@ -65,13 +64,13 @@
   </style>
 </head>
 <body>
-  <!-- タブ切り替え -->
+  <!-- タブ -->
   <div style="padding:10px; border-bottom:1px solid #ccc;">
     <button id="simulationTab">シミュレーション</button>
     <button id="adventureTab">冒険団管理</button>
   </div>
 
-  <!-- シミュレーション画面 -->
+  <!-- シミュレーションセクション -->
   <div id="simulationSection">
     <div id="container">
       <div id="left-pane">
@@ -87,7 +86,7 @@
     </div>
   </div>
 
-  <!-- 冒険団管理画面 -->
+  <!-- 冒険団管理 -->
   <div id="adventureSection" style="display:none; padding:10px;">
     <h3>冒険団の新規作成/編集</h3>
     <div>
@@ -106,7 +105,6 @@
       </div>
       <div>
         <label>アクティブ値: </label>
-        <!-- 3億など文字入力OK -->
         <input type="text" id="activeInput" value="0" required />
       </div>
       <div>
@@ -123,11 +121,12 @@
   </div>
 
   <script>
+    // キャンバス描画
     const canvas = document.getElementById("gameCanvas");
     const ctx = canvas.getContext("2d");
 
-    let nodes = {};
-    let adventureGroupsCache = {};
+    let nodes = {};                // /api/map結果
+    let adventureGroupsCache = {}; // /api/adventure_groups結果
 
     const NODE_SIZES = {
       "コンビニ": 15,
@@ -137,13 +136,11 @@
       "中心大厦": 35
     };
 
-    // キャンバス描画オフセット(不要なら0,0)
+    // ずらしたい場合は変更
     const MAP_OFFSET_X = 80;
     const MAP_OFFSET_Y = 60;
 
-    //====================================
-    // タブ切り替え
-    //====================================
+    // タブ
     const simulationSection = document.getElementById("simulationSection");
     const adventureSection  = document.getElementById("adventureSection");
     document.getElementById("simulationTab").onclick = () => {
@@ -161,16 +158,16 @@
     fetchAdventureGroups();
     fetchTerritoryList();
 
-    //====================================
-    // マップ読み込み & 描画 & 詳細情報
-    //====================================
+    //========================
+    // マップ描画 & 得点表示
+    //========================
     function loadMap() {
       fetch("/api/map")
-        .then(r=>r.json())
-        .then(data=>{
+        .then(r => r.json())
+        .then(data => {
           nodes = data;
           drawAll();
-          buildDetailInfo(); // 誰がどこを何点で占領？
+          buildDetailInfo();
         });
     }
 
@@ -182,17 +179,17 @@
     }
 
     function drawLinks() {
-      ctx.strokeStyle="gray";
-      ctx.lineWidth=2;
-      let drawnLinks = new Set();
+      ctx.strokeStyle = "gray";
+      ctx.lineWidth = 2;
+      let drawn = new Set();
       for(let id in nodes){
         let nd= nodes[id];
         if(!nd.links) continue;
         for(let t of nd.links){
           if(!(t in nodes)) continue;
-          let key = [id,t].sort().join("-");
-          if(drawnLinks.has(key)) continue;
-          drawnLinks.add(key);
+          let key= [id,t].sort().join("-");
+          if(drawn.has(key)) continue;
+          drawn.add(key);
 
           ctx.beginPath();
           ctx.moveTo(nd.x+MAP_OFFSET_X, nd.y+MAP_OFFSET_Y);
@@ -204,67 +201,63 @@
 
     function drawNodes() {
       /*
-        teamBaseColors: 「チーム => その陣地色」マッピング
-        同じチームでも別の陣地を奪った場合に色が変わらないよう
-        すでに color を設定済みなら上書きしない
+        チームカラーを最初に割り当てた陣地の色に固定する:
+         - 既に teamBaseColors に存在するチームは上書きしない
+         - 初めて見るチーム & 陣地に assigned_color があればセット
+         - 'blue' -> 'lightskyblue', 'purple' -> 'thistle'
       */
       let teamBaseColors = {};
 
-      // 1) 陣地ノードをチェックし、「まだ登録されていない」チームの色だけセット
+      // 1) チームカラーを構築 (1周目で固定)
       for(let id in nodes){
         let n= nodes[id];
         if(n.type==="陣地" && n.team && n.assigned_color){
           if(!teamBaseColors[n.team]){
-            // 色調整(暗いblue->lightblue, purple->plum)
-            let col = n.assigned_color.toLowerCase();
-            if(col==="blue") col="lightblue";
-            if(col==="purple") col="plum";
-            teamBaseColors[n.team] = col;
+            // 色調整
+            let c= n.assigned_color.toLowerCase();
+            if(c==="blue") c="lightskyblue";
+            if(c==="purple") c="thistle";
+            teamBaseColors[n.team] = c;
           }
         }
       }
 
+      // 2) ノード描画
       for(let id in nodes){
         let nd= nodes[id];
         let bs= NODE_SIZES[nd.type]||15;
-        let w= bs*2, h=bs;
+        let w= bs*2, h= bs;
 
-        // デフォルト
-        let fillColor= "gray";
-        // もし自分が陣地で assigned_color を持っていたら
-        // まだチームカラーが設定されてなくても override する (初回のみ)
-        if(nd.type==="陣地" && nd.assigned_color && nd.team){
-          if(!teamBaseColors[nd.team]){
-            let col = nd.assigned_color.toLowerCase();
-            if(col==="blue") col="lightblue";
-            if(col==="purple") col="plum";
-            teamBaseColors[nd.team] = col;
-          }
-        }
+        let fillColor = "gray"; // デフォルト
 
-        // 自分の team が teamBaseColors に登録されてればその色
+        // もしチームがあり & teamBaseColors に登録されていれば その色を使う
         if(nd.team && teamBaseColors[nd.team]){
-          fillColor= teamBaseColors[nd.team];
-        } else if(nd.type==="陣地" && nd.assigned_color){
-          // 未割当チームでも assigned_color
-          let col = nd.assigned_color.toLowerCase();
-          if(col==="blue") col="lightblue";
-          if(col==="purple") col="plum";
-          fillColor= col;
+          fillColor = teamBaseColors[nd.team];
+        }
+        // まだチームが無い陣地なら assigned_color (調整後)
+        else if(nd.type==="陣地" && nd.assigned_color){
+          let c= nd.assigned_color.toLowerCase();
+          if(c==="blue") c="lightskyblue";
+          if(c==="purple") c="thistle";
+          fillColor= c;
         }
 
         ctx.fillStyle= fillColor;
-        ctx.fillRect(nd.x+MAP_OFFSET_X - w/2, nd.y+MAP_OFFSET_Y - h/2, w,h);
+        ctx.fillRect(
+          nd.x + MAP_OFFSET_X - w/2,
+          nd.y + MAP_OFFSET_Y - h/2,
+          w,h
+        );
 
-        // メインラベル (陣地=>チーム, それ以外=>name)
+        // メインラベル (陣地ならチーム, それ以外は name)
         let label= (nd.type==="陣地" && nd.team)? nd.team: nd.name;
-        ctx.fillStyle="black";
-        ctx.font="12px Arial";
-        ctx.textAlign="center";
-        ctx.textBaseline="middle";
+        ctx.fillStyle= "black";
+        ctx.font= "12px Arial";
+        ctx.textAlign= "center";
+        ctx.textBaseline= "middle";
         ctx.fillText(label, nd.x+MAP_OFFSET_X, nd.y+MAP_OFFSET_Y);
 
-        // 陣地なら活・得・脅
+        // 陣地 => 活・得・脅 表示
         if(nd.type==="陣地"){
           let offsetY=15;
           let av_str= nd.display_active||"0";
@@ -278,7 +271,7 @@
       }
     }
 
-    function refreshScores(){
+    function refreshScores() {
       fetch("/api/scores")
         .then(r=>r.json())
         .then(sc=>{
@@ -290,7 +283,7 @@
         });
     }
 
-    // 占領情報の詳細 => #details に表示
+    // 誰がどのマスを何点で占領？
     function buildDetailInfo(){
       let detailMap = {};
       for(let id in nodes){
@@ -307,12 +300,11 @@
         }
         detailMap[t].push({ nodeName: nd.name, nodeScore });
       }
-
       let html="";
       for(let team in detailMap){
-        html += `<strong>${team}</strong><br>`;
+        html+= `<strong>${team}</strong><br>`;
         detailMap[team].forEach(obj=>{
-          html += `　- ${obj.nodeName}: ${obj.nodeScore} 点<br>`;
+          html+= `　- ${obj.nodeName}: ${obj.nodeScore} 点<br>`;
         });
         html+="<br>";
       }
@@ -320,16 +312,16 @@
     }
 
     //=====================================
-    // Canvasクリック => チーム割り当て
+    // Canvasクリック => 占領チーム割り当て
     //=====================================
     canvas.addEventListener("click",(ev)=>{
       let rect= canvas.getBoundingClientRect();
       let scaleX= canvas.width/ rect.width;
       let scaleY= canvas.height/ rect.height;
-      let cx= (ev.clientX - rect.left)*scaleX;
-      let cy= (ev.clientY - rect.top)*scaleY;
+      let cx= (ev.clientX-rect.left)*scaleX;
+      let cy= (ev.clientY-rect.top)*scaleY;
 
-      let clickedId=null;
+      let clickedId= null;
       for(let id in nodes){
         let nd= nodes[id];
         let bs= NODE_SIZES[nd.type]||15;
@@ -339,15 +331,14 @@
         let top= nd.y+MAP_OFFSET_Y - h/2;
         let bottom= nd.y+MAP_OFFSET_Y + h/2;
         if(cx>=left && cx<=right && cy>=top && cy<=bottom){
-          clickedId=id;
-          break;
+          clickedId= id; break;
         }
       }
 
       if(clickedId){
         let node= nodes[clickedId];
         if(node.type==="陣地" && !node.team){
-          let t= prompt("この陣地を占領する冒険団名:", "");
+          let t= prompt("この陣地を占領する冒険団名:","");
           if(t) assignTeam(clickedId,t);
         } else {
           assignTeamDropdown(clickedId,node);
@@ -356,15 +347,15 @@
     });
 
     function assignTeam(nodeId, teamName){
-      fetch("/api/assign_team", {
+      fetch("/api/assign_team",{
         method:"POST",
         headers:{"Content-Type":"application/json"},
-        body: JSON.stringify({ node_id:nodeId, team:teamName })
+        body: JSON.stringify({node_id:nodeId, team:teamName})
       })
       .then(r=>r.json())
       .then(d=>{
         console.log(d.message);
-        loadMap();            // 再描画 & detailInfo再構築
+        loadMap();            // 再描画 => buildDetailInfo()
         fetchAdventureGroups();
       });
     }
@@ -379,7 +370,7 @@
       overlay.className="overlay";
       let popup= document.createElement("div");
       popup.className="popup";
-      popup.innerHTML="<div>占領する冒険団を選択:</div>";
+      popup.innerHTML= "<div>占領する冒険団を選択:</div>";
       let sel= document.createElement("select");
       advNames.forEach(nm=>{
         let op= document.createElement("option");
@@ -409,11 +400,9 @@
       });
     }
 
-    //=====================================
     // リセット
-    //=====================================
     document.getElementById("resetButton").onclick=()=>{
-      fetch("/api/reset",{method:"POST"})
+      fetch("/api/reset", {method:"POST"})
       .then(r=>r.json())
       .then(d=>{
         console.log(d.message);
@@ -478,7 +467,8 @@
         let sel= document.getElementById("territorySelect");
         sel.innerHTML="";
         let empty= document.createElement("option");
-        empty.value=""; empty.text="（未選択）";
+        empty.value= "";
+        empty.text= "（未選択）";
         sel.appendChild(empty);
 
         terrs.forEach(t=>{
@@ -490,19 +480,18 @@
       });
     }
 
-    // 冒険団フォーム送信
     document.getElementById("groupForm").addEventListener("submit",(e)=>{
       e.preventDefault();
       let gname= document.getElementById("groupNameInput").value.trim();
       let territory= document.getElementById("territorySelect").value;
-      let activeVal= document.getElementById("activeInput").value; 
+      let activeVal= document.getElementById("activeInput").value;
       let bArr= Array.from(document.getElementsByClassName("battleInput")).map(x=> parseFloat(x.value));
 
-      let payload={
-        group_name:gname,
-        territory:territory,
-        active_total:activeVal,
-        battle_values:bArr
+      let payload= {
+        group_name: gname,
+        territory: territory,
+        active_total: activeVal,
+        battle_values: bArr
       };
 
       fetch("/api/adventure_groups",{
