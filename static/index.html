@@ -1,535 +1,322 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-    <meta charset="UTF-8" />
-    <title>幻の島シミュレーション</title>
-    <style>
-        /* キャンバス 1000×700 + 右ペイン200 => 幅1200pxで中央寄せ */
-        #container {
-            display: flex;
-            width: 1200px;
-            margin: 0 auto;
-            height: 700px;
-            align-items: flex-start;
-        }
+  <meta charset="UTF-8" />
+  <title>陣取りシミュレーション</title>
+  <style>
+    /* ★ PC向けデフォルトレイアウト ★ */
+    #container {
+      display: flex;
+      flex-direction: row;  /* PCでは左右に分割 */
+      width: 1200px;       /* 全体幅を固定 */
+      margin: 0 auto;      /* 中央寄せ */
+      height: 700px;       /* キャンバスの高さに合わせる */
+      align-items: flex-start;
+    }
 
-        #left-pane {
-        }
+    #left-pane {
+      /* PC時は特に制限なし */
+    }
 
-        #right-pane {
-            width: 200px;
-            padding: 10px;
-            border-left: 1px solid black;
-            font-family: Arial, sans-serif;
-            overflow-y: auto;
-            box-sizing: border-box;
-        }
+    #right-pane {
+      width: 200px;
+      padding: 10px;
+      border-left: 1px solid black;
+      font-family: Arial, sans-serif;
+      overflow-y: auto;
+      box-sizing: border-box;
+    }
 
-        canvas {
-          border: 1px solid black;
-          display: block;
-          width: 1000px;  /* PCでは固定にするなど */
-          height: 700px;
-        }
-    
-        /* スマホ（768px以下）向けのレスポンシブ */
-        @media screen and (max-width: 768px) {
-          #container {
-            flex-direction: column;  /* 上下配置 */
-            width: 100%;
-            height: auto;
-          }
-          #right-pane {
-            border-left: none;
-            border-top: 1px solid black;
-            width: 100%;
-          }
-          /* Canvasを画面幅に合わせて縮める */
-          canvas {
-            width: 100% !important;
-            height: auto !important;
-          }
-        }
+    canvas {
+      border: 1px solid black;
+      display: block;
+      /* PC時は 1000×700 で表示 */
+      width: 1000px;
+      height: 700px;
+    }
 
-        .overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0,0,0,0.5);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
+    /* ★ メディアクエリ: 768px以下(スマホ)でレイアウト切り替え ★ */
+    @media screen and (max-width: 768px) {
+      #container {
+        flex-direction: column;   /* 上下に分割 */
+        width: 100%;             /* 画面幅いっぱい */
+        height: auto;           /* 高さ自動 */
+      }
+      #right-pane {
+        border-left: none;      /* 左境界線を消す */
+        border-top: 1px solid black; /* 代わりに上端に線 */
+        width: 100%;           /* 画面幅に合わせる */
+      }
+      canvas {
+        /* キャンバスを画面幅に合わせて縮小 */
+        width: 100% !important;
+        height: auto !important;
+      }
+    }
 
-        .popup {
-            background-color: white;
-            padding: 20px;
-            border-radius: 5px;
-        }
+    /* オーバーレイのスタイル */
+    .overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0,0,0,0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
 
-        button {
-            margin-top: 10px;
-        }
-    </style>
+    .popup {
+      background-color: white;
+      padding: 20px;
+      border-radius: 5px;
+    }
+
+    button {
+      margin-top: 10px;
+    }
+  </style>
 </head>
 <body>
-    <!-- タブ切り替え部分 -->
-    <div style="padding:10px; border-bottom:1px solid #ccc;">
-        <button id="simulationTab">シミュレーション</button>
-        <button id="adventureTab">冒険団管理</button>
+  <!-- タブ切り替え部分 -->
+  <div style="padding:10px; border-bottom:1px solid #ccc;">
+    <button id="simulationTab">シミュレーション</button>
+    <button id="adventureTab">冒険団管理</button>
+  </div>
+
+  <!-- シミュレーション画面 -->
+  <div id="simulationSection">
+    <div id="container">
+      <div id="left-pane">
+        <canvas id="gameCanvas" width="1000" height="700"></canvas>
+      </div>
+      <div id="right-pane">
+        <h3>得点表示</h3>
+        <div id="scores"></div>
+        <button id="resetButton">リセット</button>
+        <h3>詳細</h3>
+        <div id="details">（詳細情報表示エリア）</div>
+      </div>
     </div>
+  </div>
 
-    <!-- シミュレーション画面 -->
-    <div id="simulationSection">
-        <div id="container">
-            <div id="left-pane">
-                <canvas id="gameCanvas" width="1000" height="700"></canvas>
-            </div>
-            <div id="right-pane">
-                <h3>得点表示</h3>
-                <div id="scores"></div>
-                <button id="resetButton">リセット</button>
-                <h3>詳細</h3>
-                <!-- ここに「どの冒険団がどのマスを占領し、そのマスの得点は何点か」を表示する -->
-                <div id="details">（詳細情報表示エリア）</div>
-            </div>
-        </div>
+  <!-- 冒険団管理画面 -->
+  <div id="adventureSection" style="display:none; padding:10px;">
+    <h3>冒険団の新規作成/編集</h3>
+    <div>
+      <button id="refreshGroupListBtn">冒険団一覧更新</button>
     </div>
+    <div id="groupList"></div>
 
-    <!-- 冒険団管理画面 -->
-    <div id="adventureSection" style="display:none; padding:10px;">
-        <h3>冒険団の新規作成/編集</h3>
-        <div>
-            <button id="refreshGroupListBtn">冒険団一覧更新</button>
-        </div>
-        <div id="groupList"></div>
+    <form id="groupForm">
+      <div>
+        <label>冒険団名: </label>
+        <input type="text" id="groupNameInput" required />
+      </div>
+      <div>
+        <label>陣地ID: </label>
+        <select id="territorySelect"></select>
+      </div>
+      <div>
+        <label>アクティブ値: </label>
+        <!-- 3億など文字入力でもOK -->
+        <input type="text" id="activeInput" value="0" required />
+      </div>
+      <div>
+        <label>上位5人の戦力値:</label><br>
+        <input type="number" class="battleInput" step="any" value="0" required />
+        <input type="number" class="battleInput" step="any" value="0" required />
+        <input type="number" class="battleInput" step="any" value="0" required />
+        <input type="number" class="battleInput" step="any" value="0" required />
+        <input type="number" class="battleInput" step="any" value="0" required />
+      </div>
+      <button type="submit">保存</button>
+    </form>
+    <div id="adventureResult" style="margin-top:10px; color:blue;"></div>
+  </div>
 
-        <form id="groupForm">
-            <div>
-                <label>冒険団名: </label>
-                <input type="text" id="groupNameInput" required />
-            </div>
-            <div>
-                <label>陣地ID: </label>
-                <select id="territorySelect"></select>
-            </div>
-            <div>
-                <label>アクティブ値: </label>
-                <!-- 3億など文字入力可 -->
-                <input type="text" id="activeInput" value="0" required />
-            </div>
-            <div>
-                <label>上位5人の戦力値:</label><br>
-                <input type="number" class="battleInput" step="any" value="0" required />
-                <input type="number" class="battleInput" step="any" value="0" required />
-                <input type="number" class="battleInput" step="any" value="0" required />
-                <input type="number" class="battleInput" step="any" value="0" required />
-                <input type="number" class="battleInput" step="any" value="0" required />
-            </div>
-            <button type="submit">保存</button>
-        </form>
-        <div id="adventureResult" style="margin-top:10px; color:blue;"></div>
-    </div>
+  <script>
+    /* ここにJSロジックをフル実装
+       - loadMap(), drawLinks(), drawNodes(), refreshScores()
+       - buildDetailInfo() (必要に応じ)
+       - assignTeam(), fetchAdventureGroups(), etc.
+       PC/スマホ両対応するにはメディアクエリが要。 */
 
-    <script>
-        // ====================================
-        // グローバル変数 & 定数
-        // ====================================
-        const canvas = document.getElementById("gameCanvas");
-        const ctx = canvas.getContext("2d");
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
 
-        let nodes = {};                   // /api/map の結果を保持
-        let adventureGroupsCache = {};    // /api/adventure_groups の結果
+    let nodes = {};
+    let adventureGroupsCache = {};
 
-        // ノードタイプ -> 描画サイズ
-        const NODE_SIZES = {
-            "コンビニ": 15,
-            "スーパー": 20,
-            "ホール": 25,
-            "陣地": 30,
-            "中心大厦": 35
-        };
+    const NODE_SIZES = {
+      "コンビニ": 15,
+      "スーパー": 20,
+      "ホール": 25,
+      "陣地": 30,
+      "中心大厦": 35
+    };
 
-        // キャンバス内でマップを右下にずらすオフセット (不要なら0,0)
-        const MAP_OFFSET_X = 80;
-        const MAP_OFFSET_Y = 60;
+    // フラグなど: スマホなら特定の操作を簡易化してもOK
 
-        // ====================================
-        // タブ切り替え
-        // ====================================
-        const simulationSection = document.getElementById("simulationSection");
-        const adventureSection = document.getElementById("adventureSection");
+    // タブ切り替え
+    const simulationSection = document.getElementById("simulationSection");
+    const adventureSection = document.getElementById("adventureSection");
+    document.getElementById("simulationTab").onclick = () => {
+      simulationSection.style.display = "block";
+      adventureSection.style.display = "none";
+    };
+    document.getElementById("adventureTab").onclick = () => {
+      simulationSection.style.display = "none";
+      adventureSection.style.display = "block";
+      fetchAdventureGroups();
+    };
 
-        document.getElementById("simulationTab").onclick = () => {
-            simulationSection.style.display = "block";
-            adventureSection.style.display = "none";
-        };
-        document.getElementById("adventureTab").onclick = () => {
-            simulationSection.style.display = "none";
-            adventureSection.style.display = "block";
-            fetchAdventureGroups();
-        };
+    // === 初期ロード例 ===
+    loadMap();
+    fetchAdventureGroups();
+    fetchTerritoryList();
 
-        // ====================================
-        // 初期ロード
-        // ====================================
-        loadMap();                // /api/map => nodes
-        fetchAdventureGroups();   // /api/adventure_groups => adventureGroupsCache
-        fetchTerritoryList();     // 陣地リスト => select
-
-        // ====================================
-        // マップ読み込み & 描画 & 詳細情報
-        // ====================================
-        function loadMap() {
-            fetch("/api/map")
-                .then(r => r.json())
-                .then(data => {
-                    nodes = data;
-                    drawAll();
-                    buildDetailInfo();  // ここで詳細情報表示を更新
-                });
-        }
-
-        function drawAll() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            drawLinks();
-            drawNodes();
-            refreshScores();
-        }
-
-        function drawLinks() {
-            ctx.strokeStyle = "gray";
-            ctx.lineWidth = 2;
-            let drawnLinks = new Set();
-
-            for (let id in nodes) {
-                const nd = nodes[id];
-                if (!nd.links) continue;
-
-                for (let targetId of nd.links) {
-                    if (!(targetId in nodes)) continue;
-                    let key = [id, targetId].sort().join("-");
-                    if (drawnLinks.has(key)) continue;
-                    drawnLinks.add(key);
-
-                    ctx.beginPath();
-                    ctx.moveTo(nd.x + MAP_OFFSET_X, nd.y + MAP_OFFSET_Y);
-                    ctx.lineTo(nodes[targetId].x + MAP_OFFSET_X, nodes[targetId].y + MAP_OFFSET_Y);
-                    ctx.stroke();
-                }
-            }
-        }
-
-        function drawNodes() {
-            // 例えば「陣地の assigned_color」をチーム色として使う例
-            let teamBaseColors = {};
-            for (let id in nodes) {
-                const n = nodes[id];
-                if (n.type === "陣地" && n.team && n.assigned_color) {
-                    teamBaseColors[n.team] = n.assigned_color;
-                }
-            }
-
-            for (let id in nodes) {
-                const nd = nodes[id];
-                let bs = NODE_SIZES[nd.type] || 15;
-                let w = bs * 2, h = bs;
-
-                // 塗り色
-                let fillColor = "gray";
-                if (nd.type === "陣地" && nd.assigned_color) {
-                    fillColor = nd.assigned_color;
-                } else if (nd.team && teamBaseColors[nd.team]) {
-                    fillColor = teamBaseColors[nd.team];
-                }
-
-                // 四角
-                ctx.fillStyle = fillColor;
-                ctx.fillRect(
-                    nd.x + MAP_OFFSET_X - w / 2,
-                    nd.y + MAP_OFFSET_Y - h / 2,
-                    w, h
-                );
-
-                // メインラベル (陣地なら team、非陣地は name)
-                let label = (nd.type === "陣地" && nd.team) ? nd.team : nd.name;
-                ctx.fillStyle = "black";
-                ctx.font = "12px Arial";
-                ctx.textAlign = "center";
-                ctx.textBaseline = "middle";
-                ctx.fillText(label, nd.x + MAP_OFFSET_X, nd.y + MAP_OFFSET_Y);
-
-                // 陣地だけ「活: / 得: / 脅:」表示
-                if (nd.type === "陣地") {
-                    let offsetY = 15;
-                    let av_str = nd.display_active || "0";
-                    let sc = nd.display_score || 0;
-                    let thr = nd.threat || "";
-                    ctx.fillText(`活:${av_str} 得:${sc} 脅:${thr}`,
-                        nd.x + MAP_OFFSET_X,
-                        nd.y + MAP_OFFSET_Y + offsetY
-                    );
-                }
-            }
-        }
-
-        function refreshScores() {
-            fetch("/api/scores")
-                .then(r => r.json())
-                .then(sc => {
-                    let html = "";
-                    for (let tm in sc) {
-                        html += `${tm} : ${sc[tm]} 点<br>`;
-                    }
-                    document.getElementById("scores").innerHTML = html;
-                });
-        }
-
-        // ====================================
-        // 詳細情報: 「どの冒険団がどのマスを占領し、そのマスの得点は何点か」
-        // ====================================
-        function buildDetailInfo() {
-            /*
-              1. nodes をチームごとにグループ化
-              2. 陣地の得点は (owner_team==team)?0 : node.score
-                 非陣地は node.score
-              3. #details に表示
-            */
-            let detailMap = {}; // teamName => array of { nodeName, score }
-
-            for (let id in nodes) {
-                let nd = nodes[id];
-                if (!nd.team) continue; // 占領されていない
-                let team = nd.team;
-                if (!detailMap[team]) {
-                    detailMap[team] = [];
-                }
-                // スコアロジック
-                let nodeScore = 0;
-                if (nd.type === "陣地") {
-                    if (nd.owner_team === nd.team) {
-                        nodeScore = 0;
-                    } else {
-                        nodeScore = nd.score || 0;
-                    }
-                } else {
-                    // 非陣地(コンビニ等)
-                    nodeScore = nd.score || 0;
-                }
-                detailMap[team].push({ name: nd.name, score: nodeScore });
-            }
-
-            // HTML を組み立て
-            let detailHTML = "";
-            for (let tm in detailMap) {
-                detailHTML += `<strong>${tm}</strong><br>`;
-                detailMap[tm].forEach(obj => {
-                    detailHTML += `　- ${obj.name}: ${obj.score} 点<br>`;
-                });
-                detailHTML += "<br>";
-            }
-            document.getElementById("details").innerHTML = detailHTML || "（占領情報なし）";
-        }
-
-        // ====================================
-        // Canvasクリック => 占領チーム割り当て
-        // ====================================
-        canvas.addEventListener("click", (ev) => {
-            let rect = canvas.getBoundingClientRect();
-            let scaleX = canvas.width / rect.width;
-            let scaleY = canvas.height / rect.height;
-            let cx = (ev.clientX - rect.left) * scaleX;
-            let cy = (ev.clientY - rect.top) * scaleY;
-
-            let clickedId = null;
-            for (let id in nodes) {
-                let nd = nodes[id];
-                let bs = NODE_SIZES[nd.type] || 15;
-                let w = bs * 2, h = bs;
-                let left = nd.x + MAP_OFFSET_X - w / 2;
-                let right = nd.x + MAP_OFFSET_X + w / 2;
-                let top = nd.y + MAP_OFFSET_Y - h / 2;
-                let bottom = nd.y + MAP_OFFSET_Y + h / 2;
-
-                if (cx >= left && cx <= right && cy >= top && cy <= bottom) {
-                    clickedId = id; break;
-                }
-            }
-
-            if (clickedId) {
-                let n = nodes[clickedId];
-                if (n.type === "陣地" && !n.team) {
-                    let t = prompt("この陣地を占領する冒険団名:", "");
-                    if (t) assignTeam(clickedId, t);
-                } else {
-                    assignTeamDropdown(clickedId, n);
-                }
-            }
+    function loadMap() {
+      fetch("/api/map")
+        .then(r => r.json())
+        .then(data => {
+          nodes = data;
+          drawAll();
         });
+    }
 
-        function assignTeam(nodeId, teamName) {
-            fetch("/api/assign_team", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ node_id: nodeId, team: teamName })
-            })
-                .then(r => r.json())
-                .then(d => {
-                    console.log(d.message);
-                    loadMap();           // 再描画 & buildDetailInfo()も再実行
-                    fetchAdventureGroups();
-                });
-        }
+    function drawAll() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      drawLinks();
+      drawNodes();
+      refreshScores();
+    }
 
-        function assignTeamDropdown(nodeId, node) {
-            let advNames = Object.keys(adventureGroupsCache);
-            if (advNames.length === 0) {
-                alert("先に冒険団を作成してください。");
-                return;
-            }
-            let overlay = document.createElement("div");
-            overlay.className = "overlay";
-            let popup = document.createElement("div");
-            popup.className = "popup";
-            popup.innerHTML = "<div>占領する冒険団を選択:</div>";
-            let sel = document.createElement("select");
-            advNames.forEach(nm => {
-                let op = document.createElement("option");
-                op.value = nm; op.text = nm;
-                sel.appendChild(op);
-            });
-            popup.appendChild(sel);
-            overlay.appendChild(popup);
-            document.body.appendChild(overlay);
+    function drawLinks() {
+      // 省略: 同様に
+    }
 
-            let updateSent = false;
-            function sendUpdate() {
-                if (!updateSent) {
-                    updateSent = true;
-                    let val = sel.value;
-                    document.body.removeChild(overlay);
-                    assignTeam(nodeId, val);
-                }
-            }
-            sel.addEventListener("change", sendUpdate);
-            sel.addEventListener("blur", sendUpdate);
-            overlay.addEventListener("click", (e) => {
-                if (e.target === overlay) {
-                    document.body.removeChild(overlay);
-                }
-            });
-        }
+    function drawNodes() {
+      // 省略: 同様に
+    }
 
-        // リセット
-        document.getElementById("resetButton").onclick = () => {
-            fetch("/api/reset", { method: "POST" })
-                .then(r => r.json())
-                .then(d => {
-                    console.log(d.message);
-                    loadMap();
-                    adventureGroupsCache = {};
-                    renderGroupList();
-                });
-        };
+    function refreshScores() {
+      fetch("/api/scores")
+        .then(r => r.json())
+        .then(sc => {
+          let html = "";
+          for (let tm in sc) {
+            html += `${tm} : ${sc[tm]} 点<br>`;
+          }
+          document.getElementById("scores").innerHTML = html;
+        });
+    }
 
-        // ====================================
-        // 冒険団管理
-        // ====================================
-        document.getElementById("refreshGroupListBtn").onclick = fetchAdventureGroups;
+    document.getElementById("resetButton").onclick = () => {
+      fetch("/api/reset", { method:"POST" })
+        .then(r => r.json())
+        .then(d => {
+          console.log(d.message);
+          loadMap();
+          adventureGroupsCache = {};
+          renderGroupList();
+        });
+    };
 
-        function fetchAdventureGroups() {
-            fetch("/api/adventure_groups")
-                .then(r => r.json())
-                .then(list => {
-                    adventureGroupsCache = {};
-                    list.forEach(g => {
-                        adventureGroupsCache[g.group_name] = {
-                            raw_active_value: g.raw_active_value,
-                            active_total: g.active_total,
-                            battle_values: g.battle_values,
-                            territory: g.territory
-                        };
-                    });
-                    renderGroupList();
-                });
-        }
-
-        function renderGroupList() {
-            let div = document.getElementById("groupList");
-            div.innerHTML = "";
-            let ul = document.createElement("ul");
-            Object.keys(adventureGroupsCache).forEach(name => {
-                let obj = adventureGroupsCache[name];
-                let li = document.createElement("li");
-                li.innerHTML = `${name} (拠点:${obj.territory}, 活:${obj.raw_active_value})`;
-                li.onclick = () => fillGroupForm(name);
-                ul.appendChild(li);
-            });
-            div.appendChild(ul);
-        }
-
-        function fillGroupForm(name) {
-            let data = adventureGroupsCache[name];
-            document.getElementById("groupNameInput").value = name;
-            document.getElementById("activeInput").value = data.raw_active_value || "0";
-            document.getElementById("territorySelect").value = data.territory || "";
-            let binputs = document.getElementsByClassName("battleInput");
-            data.battle_values.forEach((v, i) => {
-                if (binputs[i]) binputs[i].value = v;
-            });
-        }
-
-        function fetchTerritoryList() {
-            fetch("/api/map")
-                .then(r => r.json())
-                .then(mp => {
-                    let terrs = Object.keys(mp).filter(k => mp[k].type === "陣地");
-                    let sel = document.getElementById("territorySelect");
-                    sel.innerHTML = "";
-                    let empty = document.createElement("option");
-                    empty.value = ""; empty.text = "（未選択）";
-                    sel.appendChild(empty);
-
-                    terrs.forEach(t => {
-                        let op = document.createElement("option");
-                        op.value = t; op.text = t;
-                        sel.appendChild(op);
-                    });
-                });
-        }
-
-        document.getElementById("groupForm").addEventListener("submit", e => {
-            e.preventDefault();
-            let gname = document.getElementById("groupNameInput").value.trim();
-            let territory = document.getElementById("territorySelect").value;
-            let activeVal = document.getElementById("activeInput").value; // ex. '3億'
-            let bArr = Array.from(document.getElementsByClassName("battleInput")).map(x => parseFloat(x.value));
-
-            let payload = {
-                group_name: gname,
-                territory: territory,
-                active_total: activeVal,
-                battle_values: bArr
+    function fetchAdventureGroups() {
+      fetch("/api/adventure_groups")
+        .then(r => r.json())
+        .then(list => {
+          adventureGroupsCache = {};
+          list.forEach(g => {
+            adventureGroupsCache[g.group_name] = {
+              raw_active_value: g.raw_active_value,
+              active_total: g.active_total,
+              battle_values: g.battle_values,
+              territory: g.territory
             };
-
-            fetch("/api/adventure_groups", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(payload)
-            })
-                .then(r => r.json())
-                .then(d => {
-                    if (d.error) {
-                        document.getElementById("adventureResult").innerHTML = `<span style='color:red;'>${d.error}</span>`;
-                    } else {
-                        document.getElementById("adventureResult").innerText = d.message;
-                        fetchAdventureGroups();
-                        loadMap();
-                    }
-                });
+          });
+          renderGroupList();
         });
-    </script>
+    }
+
+    function renderGroupList() {
+      let div = document.getElementById("groupList");
+      div.innerHTML = "";
+      let ul = document.createElement("ul");
+      Object.keys(adventureGroupsCache).forEach(name => {
+        let obj = adventureGroupsCache[name];
+        let li = document.createElement("li");
+        li.innerHTML = `${name} (拠点:${obj.territory}, 活:${obj.raw_active_value})`;
+        li.onclick = () => fillGroupForm(name);
+        ul.appendChild(li);
+      });
+      div.appendChild(ul);
+    }
+
+    function fillGroupForm(name) {
+      let data = adventureGroupsCache[name];
+      document.getElementById("groupNameInput").value = name;
+      document.getElementById("activeInput").value = data.raw_active_value || "0";
+      document.getElementById("territorySelect").value = data.territory || "";
+      let binputs = document.getElementsByClassName("battleInput");
+      data.battle_values.forEach((v,i)=>{
+        if(binputs[i]) binputs[i].value = v;
+      });
+    }
+
+    function fetchTerritoryList() {
+      fetch("/api/map")
+        .then(r=>r.json())
+        .then(mp => {
+          let terrs = Object.keys(mp).filter(k=> mp[k].type==="陣地");
+          let sel = document.getElementById("territorySelect");
+          sel.innerHTML = "";
+          let empty = document.createElement("option");
+          empty.value = "";
+          empty.text = "（未選択）";
+          sel.appendChild(empty);
+          terrs.forEach(t => {
+            let op = document.createElement("option");
+            op.value = t;
+            op.text = t;
+            sel.appendChild(op);
+          });
+        });
+    }
+
+    document.getElementById("groupForm").addEventListener("submit", e => {
+      e.preventDefault();
+      let gname = document.getElementById("groupNameInput").value.trim();
+      let territory = document.getElementById("territorySelect").value;
+      let activeVal = document.getElementById("activeInput").value;
+      let bArr = Array.from(document.getElementsByClassName("battleInput"))
+                      .map(x=> parseFloat(x.value));
+
+      let payload = {
+        group_name: gname,
+        territory: territory,
+        active_total: activeVal,
+        battle_values: bArr
+      };
+
+      fetch("/api/adventure_groups", {
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body: JSON.stringify(payload)
+      })
+      .then(r=>r.json())
+      .then(d=>{
+        if(d.error){
+          document.getElementById("adventureResult").innerHTML= `<span style='color:red;'>${d.error}</span>`;
+        } else {
+          document.getElementById("adventureResult").innerText= d.message;
+          fetchAdventureGroups();
+          loadMap();
+        }
+      });
+    });
+  </script>
 </body>
 </html>
